@@ -108,103 +108,103 @@ struct EmptySelectionPanelView: View {
                     )
                     .animation(.easeInOut(duration: 0.2), value: isTyping)
                     
-                    // Suggestion chips
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 8) {
-                            SuggestionChip(text: "Summarize selected text", isSelected: selectedSuggestion == "Summarize selected text") {
-                                selectSuggestion("Summarize selected text")
-                            }
-                            SuggestionChip(text: "Draft a response", isSelected: selectedSuggestion == "Draft a response") {
-                                selectSuggestion("Draft a response")
-                            }
-                            SuggestionChip(text: "Explain concept", isSelected: selectedSuggestion == "Explain concept") {
-                                selectSuggestion("Explain concept")
-                            }
-                            SuggestionChip(text: "Improve writing", isSelected: selectedSuggestion == "Improve writing") {
-                                selectSuggestion("Improve writing")
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
+                    // // Suggestion chips
+                    // ScrollView(.horizontal, showsIndicators: false) {
+                    //     HStack(spacing: 8) {
+                    //         SuggestionChip(text: "Summarize selected text", isSelected: selectedSuggestion == "Summarize selected text") {
+                    //             selectSuggestion("Summarize selected text")
+                    //         }
+                    //         SuggestionChip(text: "Draft a response", isSelected: selectedSuggestion == "Draft a response") {
+                    //             selectSuggestion("Draft a response")
+                    //         }
+                    //         SuggestionChip(text: "Explain concept", isSelected: selectedSuggestion == "Explain concept") {
+                    //             selectSuggestion("Explain concept")
+                    //         }
+                    //         SuggestionChip(text: "Improve writing", isSelected: selectedSuggestion == "Improve writing") {
+                    //             selectSuggestion("Improve writing")
+                    //         }
+                    //     }
+                    //     .padding(.vertical, 4)
+                    // }
                 }
                 
-                if !isTyping && inputText.isEmpty && selectedSuggestion == nil {
-                    // Quick action examples
-                    Text("Quick actions")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                        .padding(.top, 8)
+                // if !isTyping && inputText.isEmpty && selectedSuggestion == nil {
+                //     // Quick action examples
+                //     Text("Quick actions")
+                //         .font(.headline)
+                //         .foregroundColor(.primary)
+                //         .padding(.top, 8)
                     
-                    VStack(alignment: .leading, spacing: 12) {
-                        QuickActionRow(
-                            icon: "wand.and.stars", 
-                            title: "Write a draft email",
-                            description: "Reply to client about project status",
-                            isHovered: hoveredAction == "email"
-                        ) {
-                            selectAction("Write a professional email reply to our client about the project status update")
-                        }
-                        .onHover { isHovered in
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                hoveredAction = isHovered ? "email" : nil
-                            }
-                        }
+                //     VStack(alignment: .leading, spacing: 12) {
+                //         QuickActionRow(
+                //             icon: "wand.and.stars", 
+                //             title: "Write a draft email",
+                //             description: "Reply to client about project status",
+                //             isHovered: hoveredAction == "email"
+                //         ) {
+                //             selectAction("Write a professional email reply to our client about the project status update")
+                //         }
+                //         .onHover { isHovered in
+                //             withAnimation(.easeInOut(duration: 0.2)) {
+                //                 hoveredAction = isHovered ? "email" : nil
+                //             }
+                //         }
                         
-                        QuickActionRow(
-                            icon: "text.badge.checkmark", 
-                            title: "Summarize text",
-                            description: "Condense selected text into key points", 
-                            isHovered: hoveredAction == "summarize"
-                        ) {
-                            selectAction("Summarize the following text into key bullet points")
-                        }
-                        .onHover { isHovered in
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                hoveredAction = isHovered ? "summarize" : nil
-                            }
-                        }
+                //         QuickActionRow(
+                //             icon: "text.badge.checkmark", 
+                //             title: "Summarize text",
+                //             description: "Condense selected text into key points", 
+                //             isHovered: hoveredAction == "summarize"
+                //         ) {
+                //             selectAction("Summarize the following text into key bullet points")
+                //         }
+                //         .onHover { isHovered in
+                //             withAnimation(.easeInOut(duration: 0.2)) {
+                //                 hoveredAction = isHovered ? "summarize" : nil
+                //             }
+                //         }
                         
-                        QuickActionRow(
-                            icon: "lightbulb", 
-                            title: "Generate ideas", 
-                            description: "Brainstorm solutions for a problem",
-                            isHovered: hoveredAction == "ideas"
-                        ) {
-                            selectAction("Generate 5 creative ideas to solve the following problem")
-                        }
-                        .onHover { isHovered in
-                            withAnimation(.easeInOut(duration: 0.2)) {
-                                hoveredAction = isHovered ? "ideas" : nil
-                            }
-                        }
-                    }
-                }
+                //         QuickActionRow(
+                //             icon: "lightbulb", 
+                //             title: "Generate ideas", 
+                //             description: "Brainstorm solutions for a problem",
+                //             isHovered: hoveredAction == "ideas"
+                //         ) {
+                //             selectAction("Generate 5 creative ideas to solve the following problem")
+                //         }
+                //         .onHover { isHovered in
+                //             withAnimation(.easeInOut(duration: 0.2)) {
+                //                 hoveredAction = isHovered ? "ideas" : nil
+                //             }
+                //         }
+                //     }
+                // }
                 
-                // Run button at the bottom
-                if !inputText.isEmpty || selectedSuggestion != nil {
-                    HStack {
-                        Spacer()
+                // // Run button at the bottom
+                // if !inputText.isEmpty || selectedSuggestion != nil {
+                //     HStack {
+                //         Spacer()
                         
-                        Button(action: submitQuery) {
-                            HStack(spacing: 6) {
-                                Text("Run")
-                                    .fontWeight(.medium)
+                //         Button(action: submitQuery) {
+                //             HStack(spacing: 6) {
+                //                 Text("Run")
+                //                     .fontWeight(.medium)
                                 
-                                Image(systemName: "arrow.right")
-                                    .font(.system(size: 12))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                            .background(Color.blue)
-                            .cornerRadius(6)
-                        }
-                        .keyboardShortcut(.return, modifiers: [])
-                        .buttonStyle(PlainButtonStyle())
-                        .shadow(color: Color.blue.opacity(0.3), radius: 5, x: 0, y: 2)
-                    }
-                    .padding(.top, 8)
-                }
+                //                 Image(systemName: "arrow.right")
+                //                     .font(.system(size: 12))
+                //             }
+                //             .foregroundColor(.white)
+                //             .padding(.horizontal, 16)
+                //             .padding(.vertical, 8)
+                //             .background(Color.blue)
+                //             .cornerRadius(6)
+                //         }
+                //         .keyboardShortcut(.return, modifiers: [])
+                //         .buttonStyle(PlainButtonStyle())
+                //         .shadow(color: Color.blue.opacity(0.3), radius: 5, x: 0, y: 2)
+                //     }
+                //     .padding(.top, 8)
+                // }
             }
             .padding(16)
         }

@@ -2,6 +2,59 @@ import SwiftUI
 import AppKit
 import Combine
 
+// FocusableTextField to enable auto-focus
+struct FocusableTextField: NSViewRepresentable {
+    @Binding var text: String
+    var placeholder: String
+    var onCommit: () -> Void
+    var isFocused: Bool
+    
+    func makeNSView(context: Context) -> NSTextField {
+        let textField = NSTextField()
+        textField.placeholderString = placeholder
+        textField.delegate = context.coordinator
+        textField.font = .systemFont(ofSize: 15)
+        textField.isBezeled = false
+        textField.isBordered = false
+        textField.drawsBackground = false
+        return textField
+    }
+    
+    func updateNSView(_ nsView: NSTextField, context: Context) {
+        nsView.stringValue = text
+        
+        // Focus the text field when requested
+        if isFocused {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                if let window = nsView.window, window.isKeyWindow {
+                    nsView.becomeFirstResponder()
+                }
+            }
+        }
+    }
+    
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+    
+    class Coordinator: NSObject, NSTextFieldDelegate {
+        var parent: FocusableTextField
+        
+        init(_ parent: FocusableTextField) {
+            self.parent = parent
+        }
+        
+        func controlTextDidChange(_ obj: Notification) {
+            guard let textField = obj.object as? NSTextField else { return }
+            parent.text = textField.stringValue
+        }
+        
+        func controlTextDidEndEditing(_ obj: Notification) {
+            parent.onCommit()
+        }
+    }
+}
+
 struct KerligStylePanelView: View {
     @EnvironmentObject var appState: AppState
     @State private var inputText: String = ""
@@ -15,7 +68,10 @@ struct KerligStylePanelView: View {
     @State private var generatedResponse: String = ""
     @State private var isProcessing: Bool = false
     @State private var cancellables = Set<AnyCancellable>()
-    
+    @State private var shouldFocusTextField: Bool = true
+    @State private var animatePanel: Bool = false
+    @FocusState private var searchQueryIsFocused: Bool
+
     // Services
     private let aiService = AIService()
     private let hotkeyManager = HotkeyManager()
@@ -58,13 +114,18 @@ struct KerligStylePanelView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Header with app info
-            headerView
+            HeaderPanelView()
             
             // Main content area with prompt and actions
             mainContentView
         }
         .frame(width: 640, height: 520)
-        .background(Color(.windowBackgroundColor))
+        .background(
+            Color(.windowBackgroundColor)
+                .opacity(0.98)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 5)
         .onAppear {
             // Initialize displayed text from appState
             displayedText = appState.selectedText
@@ -81,107 +142,50 @@ struct KerligStylePanelView: View {
             if !displayedText.isEmpty && selectedAction == nil {
                 selectedAction = quickActions.first
             }
+            
+            // Set focus state to true when panel opens
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                searchQueryIsFocused = true
+            }
+            
+            // Animate panel appearance
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                animatePanel = true
+            }
         }
-        .onChange(of: appState.selectedText) { newText in
+        .onChange(of: appState.isAIPanelVisible) { oldValue, newValue in
+            if newValue {
+                // Ensure text field gets focus when panel becomes visible
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    searchQueryIsFocused = true
+                }
+                
+                // Animate panel in
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                    animatePanel = true
+                }
+            } else {
+                // Animate panel out
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.8)) {
+                    animatePanel = false
+                }
+                searchQueryIsFocused = false
+            }
+        }
+        .onChange(of: appState.selectedText) { oldValue, newValue in
             // Update displayed text when selectedText changes
-            displayedText = newText
+            displayedText = newValue
             
             // Update tab selection
-            if !newText.isEmpty {
+            if !newValue.isEmpty {
                 selectedTab = .withContent
             }
             
             // Clear previous response when text changes
             generatedResponse = ""
         }
-    }
-    
-    // MARK: - Subviews
-    
-    private var headerView: some View {
-        HStack(spacing: 12) {
-            // Source app icon
-            Image(systemName: "globe")
-                .font(.system(size: 16))
-                .foregroundColor(.blue)
-                .frame(width: 24, height: 24)
-            
-            // App name
-            Text(appState.currentAppName.isEmpty ? "Google Chrome" : appState.currentAppName)
-                .font(.system(size: 14))
-                .foregroundColor(.primary)
-            
-            Spacer()
-            
-            // Start blank / with content toggle
-            HStack(spacing: 0) {
-                Button(action: {
-                    selectedTab = .blank
-                }) {
-                    Text("Start blank")
-                        .font(.system(size: 13))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .foregroundColor(selectedTab == .blank ? .primary : .secondary)
-                        .background(selectedTab == .blank ? Color.white : Color.clear)
-                        .cornerRadius(4)
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                Button(action: {
-                    selectedTab = .withContent
-                }) {
-                    Image(systemName: "arrow.up.doc.fill")
-                        .font(.system(size: 12))
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .foregroundColor(selectedTab == .withContent ? .primary : .secondary)
-                        .background(selectedTab == .withContent ? Color.white : Color.clear)
-                        .cornerRadius(4)
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-            .background(Color.secondary.opacity(0.1))
-            .cornerRadius(4)
-            
-            // Pin button
-            Button(action: {
-                isPanelPinned.toggle()
-                
-                // Notify panel controller about pin state change
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("PanelPinStateChanged"),
-                    object: isPanelPinned
-                )
-            }) {
-                Image(systemName: isPanelPinned ? "pin.fill" : "pin")
-                    .font(.system(size: 14))
-                    .foregroundColor(isPanelPinned ? .blue : .secondary)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            // History button
-            Button(action: {
-                // Navigate to history in main app
-                NotificationCenter.default.post(
-                    name: NSNotification.Name("ShowHistoryView"),
-                    object: nil
-                )
-                
-                // Close panel
-                closePanel()
-            }) {
-                Image(systemName: "clock")
-                    .font(.system(size: 14))
-                    .foregroundColor(.secondary)
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color.white)
+        .scaleEffect(animatePanel ? 1.0 : 0.95)
+        .opacity(animatePanel ? 1.0 : 0.0)
     }
     
     private var mainContentView: some View {
@@ -196,13 +200,17 @@ struct KerligStylePanelView: View {
                             promptField
                             
                             // Quick action buttons
-                            actionButtonsView
+                            // actionButtonsView
                             
                             if !generatedResponse.isEmpty {
-                                responseView
+                                // responseView
                             }
                         }
+                        .padding(.bottom, 20)
                     }
+                    .background(Color.white.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(8)
                 } else {
                     // Content when "with content" tab is selected
                     ScrollView {
@@ -214,17 +222,21 @@ struct KerligStylePanelView: View {
                             promptField
                             
                             // Quick action buttons
-                            actionButtonsView
+                            // actionButtonsView
                             
                             if !generatedResponse.isEmpty {
-                                responseView
+                                // responseView
                             }
                         }
+                        .padding(.bottom, 20)
                     }
+                    .background(Color.white.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .padding(8)
                 }
             }
         }
-        .background(Color.white.opacity(0.97))
+        .background(Color.white.opacity(0.95))
     }
     
     private var selectedTextView: some View {
@@ -234,10 +246,16 @@ struct KerligStylePanelView: View {
                 .foregroundColor(.primary)
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.secondary.opacity(0.1))
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.secondary.opacity(0.1))
+                )
+                .cornerRadius(8)
         }
         .padding(.horizontal, 16)
         .padding(.top, 16)
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.spring(response: 0.4), value: selectedTab == .withContent)
     }
     
     private var promptField: some View {
@@ -246,28 +264,56 @@ struct KerligStylePanelView: View {
             Image(systemName: "wand.and.stars")
                 .font(.system(size: 16))
                 .foregroundColor(.blue)
+                .opacity(0.8)
+                .scaleEffect(searchQuery.isEmpty ? 1.0 : 0.9)
+                .animation(.spring(response: 0.3), value: searchQuery.isEmpty)
             
-            // Text field for search or prompt
+            // Text field for search or prompt using SwiftUI's TextField
             TextField("Ask AI to...", text: $searchQuery)
-                .font(.system(size: 15))
-                .textFieldStyle(PlainTextFieldStyle())
                 .onSubmit {
-                    // Process the search query when user presses Enter
                     if !searchQuery.isEmpty {
                         processCustomPrompt()
                     }
                 }
+                .focused($searchQueryIsFocused)
+                .disableAutocorrection(true)
+                .textFieldStyle(PlainTextFieldStyle())
+                .foregroundColor(.primary)
+                .font(.system(size: 15))
+            
+            // Clear button that appears when text is entered
+            if !searchQuery.isEmpty {
+                Button(action: {
+                    searchQuery = ""
+                    // Re-focus the text field after clearing
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                        searchQueryIsFocused = true
+                    }
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.gray.opacity(0.7))
+                        .padding(2)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .transition(.scale.combined(with: .opacity))
+                .animation(.spring(response: 0.3), value: !searchQuery.isEmpty)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-        .background(Color.white)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color(.textBackgroundColor).opacity(0.8))
+                .shadow(color: Color.black.opacity(0.1), radius: 3, x: 0, y: 1)
+        )
         .padding(.horizontal, 16)
         .padding(.top, 16)
     }
     
     private var actionButtonsView: some View {
         VStack(spacing: 0) {
-            ForEach(quickActions, id: \.self) { action in
+            ForEach(Array(quickActions.enumerated()), id: \.element) { index, action in
                 ActionButton(
                     action: action,
                     isSelected: selectedAction == action,
@@ -275,6 +321,8 @@ struct KerligStylePanelView: View {
                     onSelect: { selectAction(action) }
                 )
                 .padding(.horizontal, 16)
+                .transition(.opacity)
+                .animation(.easeInOut.delay(Double(index) * 0.05), value: animatePanel)
             }
         }
         .padding(.top, 12)
@@ -306,7 +354,7 @@ struct KerligStylePanelView: View {
                     Label("Copy", systemImage: "doc.on.doc")
                         .font(.footnote)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainButtonStyle())
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
                 
@@ -317,7 +365,7 @@ struct KerligStylePanelView: View {
                     Label("Insert", systemImage: "arrow.right.doc.on.clipboard")
                         .font(.footnote)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainButtonStyle())
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
                 
@@ -332,13 +380,15 @@ struct KerligStylePanelView: View {
                     Label("Regenerate", systemImage: "arrow.clockwise")
                         .font(.footnote)
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(PlainButtonStyle())
                 .padding(.vertical, 4)
                 .padding(.horizontal, 8)
             }
             .padding(.horizontal, 16)
             .padding(.bottom, 16)
         }
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .animation(.spring(response: 0.5, dampingFraction: 0.8), value: !generatedResponse.isEmpty)
     }
     
     // MARK: - Helper Methods
@@ -487,6 +537,9 @@ struct ActionButton: View {
     let isProcessing: Bool
     let onSelect: () -> Void
     
+    @State private var isHovered: Bool = false
+    @State private var isPressed: Bool = false
+    
     var body: some View {
         Button(action: onSelect) {
             HStack {
@@ -499,10 +552,11 @@ struct ActionButton: View {
                     Image(systemName: action.icon)
                         .font(.system(size: 16))
                         .foregroundColor(isSelected ? .white : .blue)
+                        .shadow(color: isSelected ? Color.blue.opacity(0.3) : .clear, radius: 2, x: 0, y: 0)
                 }
                 
                 Text(action.title)
-                    .font(.system(size: 14))
+                    .font(.system(size: 14, weight: isSelected ? .medium : .regular))
                     .foregroundColor(isSelected ? .white : .primary)
                 
                 Spacer()
@@ -525,21 +579,61 @@ struct ActionButton: View {
                         .font(.system(size: 13, weight: .medium))
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(isSelected ? Color.white.opacity(0.3) : Color.blue)
+                        .background(
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(isSelected ? Color.white.opacity(0.3) : Color.blue)
+                        )
                         .cornerRadius(4)
                         .foregroundColor(isSelected ? .white : .white)
+                        .shadow(color: isSelected ? .clear : Color.blue.opacity(0.3), radius: 2, x: 0, y: 1)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .scaleEffect(isPressed ? 0.95 : 1.0)
+                .animation(.spring(response: 0.2), value: isPressed)
                 .disabled(isProcessing)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
-            .background(isSelected ? Color.blue : Color.secondary.opacity(0.05))
-            .cornerRadius(6)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        isSelected ? Color.blue :
+                        isHovered ? Color.secondary.opacity(0.1) :
+                                   Color.secondary.opacity(0.05)
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .strokeBorder(
+                        isSelected ? Color.blue.opacity(0.6) :
+                        isHovered ? Color.secondary.opacity(0.2) :
+                                   Color.clear,
+                        lineWidth: 1
+                    )
+            )
+            .cornerRadius(8)
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.bottom, 8)
         .disabled(isProcessing)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    withAnimation(.easeInOut(duration: 0.1)) {
+                        isPressed = true
+                    }
+                }
+                .onEnded { _ in
+                    withAnimation(.spring(response: 0.3)) {
+                        isPressed = false
+                    }
+                }
+        )
     }
 }
 

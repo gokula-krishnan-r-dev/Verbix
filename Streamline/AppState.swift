@@ -11,6 +11,8 @@ class AppState: ObservableObject {
     @Published var isDarkMode: Bool = false
     @Published var currentTheme: String = "light" // Default to light theme
     @Published var responseStyle: ResponseStyle = .balanced
+    @Published var isPinned: Bool = false // Track if panel is pinned
+    @Published var startWithBlank: Bool = false // Track if starting with blank content
     
     // History
     @Published var history: [ChatInteraction] = []
@@ -23,6 +25,8 @@ class AppState: ObservableObject {
     @Published var isProcessing: Bool = false
     @Published var showingSettings: Bool = false
     @Published var currentAppName: String = ""
+    @Published var currentAppPath: String = ""
+    @Published var currentAppBundleID: String = ""
     
     // Text source tracking
     @Published var textSource: TextSource = .unknown
@@ -71,6 +75,32 @@ class AppState: ObservableObject {
         }
     }
     
+    var savedIsPinned: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "isPinned")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "isPinned")
+            isPinned = newValue
+            
+            // Notify panel controller about pin state change
+            NotificationCenter.default.post(
+                name: NSNotification.Name("PanelPinStateChanged"),
+                object: isPinned
+            )
+        }
+    }
+    
+    var savedStartWithBlank: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "startWithBlank")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "startWithBlank")
+            startWithBlank = newValue
+        }
+    }
+    
     init() {
         // Load saved settings
         apiKey = savedAPIKey
@@ -82,6 +112,16 @@ class AppState: ObservableObject {
             UserDefaults.standard.set(true, forKey: "hotkeyEnabled")
         }
         hotkeyEnabled = savedHotkeyEnabled
+        
+        // Load pin state
+        if UserDefaults.standard.object(forKey: "isPinned") != nil {
+            isPinned = UserDefaults.standard.bool(forKey: "isPinned")
+        }
+        
+        // Load start with blank preference
+        if UserDefaults.standard.object(forKey: "startWithBlank") != nil {
+            startWithBlank = UserDefaults.standard.bool(forKey: "startWithBlank")
+        }
         
         // Load history
         loadHistory()
@@ -137,11 +177,21 @@ class AppState: ObservableObject {
             if let app = NSWorkspace.shared.frontmostApplication {
                 textMetadata["sourceApp"] = app.localizedName
                 textMetadata["appBundleId"] = app.bundleIdentifier
+                currentAppName = app.localizedName ?? ""
+                currentAppBundleID = app.bundleIdentifier ?? ""
+                if let appURL = app.bundleURL {
+                    currentAppPath = appURL.path
+                }
             }
         case .directSelection:
             if let app = NSWorkspace.shared.frontmostApplication {
                 textMetadata["sourceApp"] = app.localizedName
                 textMetadata["appBundleId"] = app.bundleIdentifier
+                currentAppName = app.localizedName ?? ""
+                currentAppBundleID = app.bundleIdentifier ?? ""
+                if let appURL = app.bundleURL {
+                    currentAppPath = appURL.path
+                }
             }
         case .userInput:
             textMetadata["source"] = "manual input"
@@ -201,6 +251,16 @@ class AppState: ObservableObject {
         }
     }
     
+    // Toggle pin state
+    func togglePinState() {
+        savedIsPinned = !isPinned
+    }
+    
+    // Toggle start with blank
+    func toggleStartWithBlank() {
+        savedStartWithBlank = !startWithBlank
+    }
+    
     // Save settings
     func saveSettings() {
         UserDefaults.standard.set(apiKey, forKey: "apiKey")
@@ -208,6 +268,8 @@ class AppState: ObservableObject {
         UserDefaults.standard.set("light", forKey: "theme") // Always save light theme
         UserDefaults.standard.set(hotkeyEnabled, forKey: "hotkeyEnabled")
         UserDefaults.standard.set(responseStyle.rawValue, forKey: "responseStyle")
+        UserDefaults.standard.set(isPinned, forKey: "isPinned")
+        UserDefaults.standard.set(startWithBlank, forKey: "startWithBlank")
     }
 }
 
