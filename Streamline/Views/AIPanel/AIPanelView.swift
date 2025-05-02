@@ -127,23 +127,23 @@ struct AIPanelView: View {
         .scaleEffect(isAppearing ? 1 : 0.95)
         .opacity(isAppearing ? 1 : 0)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isAppearing)
-        .onAppear {
-            selectedStyle = appState.responseStyle
+        // .onAppear {
+        //     selectedStyle = appState.responseStyle
             
-            // Appear animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    isAppearing = true
-                }
-            }
+        //     // Appear animation
+        //     DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        //         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+        //             isAppearing = true
+        //         }
+        //     }
             
-            // If text is selected, automatically generate a response
-            if !appState.selectedText.isEmpty {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                    generateResponse()
-                }
-            }
-        }
+        //     // If text is selected, automatically generate a response
+        //     if !appState.selectedText.isEmpty {
+        //         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+        //             generateResponse()
+        //         }
+        //     }
+        // }
     }
     
     // Break down the body view into smaller components
@@ -316,38 +316,6 @@ struct AIPanelView: View {
         return prefix + "This is a simulated AI response for the '\(action.rawValue)' action based on the " + (appState.selectedText.isEmpty ? "input" : "selected") + " text. In a real implementation, this would connect to an AI service to process your request."
     }
     
-    private func generateResponse() {
-        guard !appState.selectedText.isEmpty && !appState.apiKey.isEmpty else { return }
-        
-        appState.isProcessing = true
-        appState.responseStyle = selectedStyle
-        
-        aiService.generateResponse(
-            prompt: appState.selectedText,
-            systemPrompt: selectedStyle.systemPrompt,
-            apiKey: appState.apiKey,
-            model: appState.aiModel
-        )
-        .sink(
-            receiveCompletion: { completion in
-                withAnimation {
-                    appState.isProcessing = false
-                }
-                
-                if case .failure(let error) = completion {
-                    appState.aiResponse = "Error: \(error.localizedDescription)"
-                }
-            },
-            receiveValue: { response in
-                withAnimation {
-                    appState.aiResponse = response
-                    editedResponse = response
-                    appState.isProcessing = false
-                }
-            }
-        )
-        .store(in: &cancellables)
-    }
 }
 
 #Preview {
