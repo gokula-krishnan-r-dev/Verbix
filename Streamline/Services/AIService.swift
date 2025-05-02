@@ -66,6 +66,7 @@ private enum AIActionTemp {
 class AIService {
     private let baseURL = "http://localhost:8080/api/v1/ai/generate" // Update with your actual API URL
     private let logger = Logger.shared
+      @EnvironmentObject var appState: AppState
     
     // Define actions directly in this class to avoid conflicts
     enum ActionType: String {
@@ -110,9 +111,9 @@ class AIService {
         request.addValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let payload: [String: Any] = [
-            "model": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+            "model": UserDefaults.standard.string(forKey: "aiModel") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
             "text": prompt,
-            "instruction": systemPrompt,
+            "instruction": "You are a helpful assistant that can help with a variety of tasks. You are given a text and a task. You need to help the user with the task using the text. You can use the text to help you complete the task.",
         ]
         
         logger.log("Payload prepared: \(payload)", level: .debug)

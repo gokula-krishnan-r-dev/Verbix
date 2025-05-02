@@ -99,7 +99,7 @@ struct KerligStylePanelView: View {
     @State private var selectedTab: ActionTab = .blank
     @State private var searchQuery: String = ""
     @State private var isPanelPinned: Bool = false
-    @State private var aiModel: AIModel = .gpt4o
+    @State private var aiModel: String =  UserDefaults.standard.string(forKey: "aiModel") ?? "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
     @State private var generatedResponse: String = ""
     @State private var isProcessing: Bool = false
     @State private var insertionStatus: InsertionStatus = .none
@@ -155,27 +155,7 @@ struct KerligStylePanelView: View {
         case withContent
     }
     
-    private enum AIModel: String, CaseIterable {
-        case gpt4o = "GPT-4o Turbo"
-        case gpt4 = "GPT-4"
-        case claude = "Claude 3"
-        
-        var badgeText: String {
-            switch self {
-            case .gpt4o: return "GPT-4o"
-            case .gpt4: return "GPT-4"
-            case .claude: return "Claude"
-            }
-        }
-        
-        var apiModel: String {
-            switch self {
-            case .gpt4o: return "gpt-4o"
-            case .gpt4: return "gpt-4"
-            case .claude: return "claude-3-opus-20240229"
-            }
-        }
-    }
+
     
     var body: some View {
         VStack(spacing: 0) {
@@ -189,11 +169,6 @@ struct KerligStylePanelView: View {
         .backgroundGradient()
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .shadow(color: Color.black.opacity(0.2), radius: 15, x: 0, y: 5)
-        .sheet(isPresented: $showInsertionHelp) {
-            InsertionHelpView(text: textToInsert, onDismiss: {
-                showInsertionHelp = false
-            })
-        }
         .onAppear {
             // Initialize the coordinator if needed
             // if coordinator == nil {
@@ -203,10 +178,6 @@ struct KerligStylePanelView: View {
             // Initialize displayed text from appState
             displayedText = appState.selectedText
             
-            // Set model from app state
-            if let model = AIModel(rawValue: appState.aiModel) {
-                aiModel = model
-            }
             
             // Set correct tab based on whether text is selected
             selectedTab = displayedText.isEmpty ? .blank : .withContent
@@ -280,102 +251,7 @@ struct KerligStylePanelView: View {
         .opacity(animatePanel ? 1.0 : 0.0)
     }
     
-    // MARK: - Keyboard Navigation Methods
     
-    private func navigateNext() {
-        switch focusedField {
-        case .searchField:
-            // Navigate to first action button
-            focusedField = .actionButton(0)
-        case .actionButton(let index):
-            if index < quickActions.count - 1 {
-                // Go to next action button
-                focusedField = .actionButton(index + 1)
-            } else if !appState.aiResponse.isEmpty {
-                // Go to copy button if we have a response
-                focusedField = .copyButton
-            } else {
-                // Loop back to search field
-                focusedField = .searchField
-                searchQueryIsFocused = true
-            }
-        case .copyButton:
-            focusedField = .insertButton
-        case .insertButton:
-            focusedField = .regenerateButton
-        case .regenerateButton, nil:
-            focusedField = .searchField
-            searchQueryIsFocused = true
-        }
-    }
-    
-    private func navigatePrevious() {
-        switch focusedField {
-        case .searchField:
-            if !appState.aiResponse.isEmpty {
-                // Go to regenerate button if we have a response
-                focusedField = .regenerateButton
-            } else if !quickActions.isEmpty {
-                // Go to last action button
-                focusedField = .actionButton(quickActions.count - 1)
-            }
-        case .actionButton(let index):
-            if index > 0 {
-                // Go to previous action button
-                focusedField = .actionButton(index - 1)
-            } else {
-                // Go to search field
-                focusedField = .searchField
-                searchQueryIsFocused = true
-            }
-        case .copyButton:
-            // Go to last action button
-            if !quickActions.isEmpty {
-                focusedField = .actionButton(quickActions.count - 1)
-            } else {
-                focusedField = .searchField
-                searchQueryIsFocused = true
-            }
-        case .insertButton:
-            focusedField = .copyButton
-        case .regenerateButton:
-            focusedField = .insertButton
-        case nil:
-            focusedField = .searchField
-            searchQueryIsFocused = true
-        }
-    }
-    
-    private func executeCurrentFocusedAction() {
-        switch focusedField {
-        case .searchField:
-            if !searchQuery.isEmpty && !isProcessing {
-                processCustomPrompt()
-            }
-        case .actionButton(let index):
-            if index >= 0 && index < quickActions.count {
-                selectAction(quickActions[index])
-            }
-        case .copyButton:
-            if !appState.aiResponse.isEmpty {
-                copyToClipboard(appState.aiResponse)
-            }
-        case .insertButton:
-            if !appState.aiResponse.isEmpty {
-                handleInsertText(appState.aiResponse)
-            }
-        case .regenerateButton:
-            if !appState.aiResponse.isEmpty {
-                if let action = selectedAction {
-                    processText(with: action)
-                } else {
-                    processCustomPrompt()
-                }
-            }
-        case nil:
-            break
-        }
-    }
     
     // Handle text insertion using the service
     private func handleInsertText(_ text: String) {
@@ -547,7 +423,7 @@ struct KerligStylePanelView: View {
         
         isProcessing = true
 
-        aiService.processWithAction(text: textToProcess, action: AIService.ActionType(rawValue: action.rawValue) ?? .summarize, apiKey: appState.apiKey, model: aiModel.apiModel)
+        aiService.processWithAction(text: textToProcess, action: AIService.ActionType(rawValue: action.rawValue) ?? .summarize, apiKey: appState.apiKey, model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast")
             .sink { completion in
                 self.isProcessing = false
                 if case .failure(let error) = completion {
@@ -707,7 +583,9 @@ struct KerligStylePanelView: View {
                     ScrollView {
                         VStack(spacing: 0) {
                             // Selected text display
-                            selectedTextView
+                            if !appState.selectedText.isEmpty {
+                                selectedTextView
+                            }
                             
                             // Search/prompt field
                             promptField
@@ -735,6 +613,7 @@ struct KerligStylePanelView: View {
     private var selectedTextView: some View {
         SelectedTextView(displayedText: displayedText, isVisible: selectedTab == .withContent)
             .padding(.bottom, 8)  // Add some padding to separate from the prompt field
+            .environmentObject(appState)  // Make sure to pass the AppState to the SelectedTextView
     }
     
     private var promptField: some View {
@@ -853,7 +732,7 @@ struct KerligStylePanelView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
                     
-                    Text(aiModel.badgeText)
+                    Text(aiModel)
                         .font(.caption)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
@@ -1474,117 +1353,4 @@ struct AnimatedButtonStyle: ButtonStyle {
     }
 }
 
-// Add a helper view for insertion failures
-struct InsertionHelpView: View {
-    let text: String
-    let onDismiss: () -> Void
-    @State private var isTeamsDetected: Bool = false
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 40))
-                    .foregroundColor(.orange)
-                
-                Text("Insertion Failed")
-                    .font(.headline)
-                    .foregroundColor(.primary)
-                
-                Text(isTeamsDetected ? 
-                     "We couldn't automatically insert text into Teams. Try the manual options below." :
-                     "We couldn't automatically insert the text. Try the manual options below.")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-            }
-            
-            if isTeamsDetected {
-                // Teams-specific instructions
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Microsoft Teams Tips:")
-                        .font(.subheadline)
-                        .fontWeight(.semibold)
-                    
-                    HStack(alignment: .top, spacing: 4) {
-                        Text("•")
-                        Text("Make sure the Teams chat input field is in focus")
-                    }
-                    .font(.caption)
-                    
-                    HStack(alignment: .top, spacing: 4) {
-                        Text("•")
-                        Text("Try clicking on the input field before pasting")
-                    }
-                    .font(.caption)
-                    
-                    HStack(alignment: .top, spacing: 4) {
-                        Text("•")
-                        Text("In some cases, you may need to use Right-Click → Paste")
-                    }
-                    .font(.caption)
-                }
-                .padding()
-                .background(Color.blue.opacity(0.1))
-                .cornerRadius(8)
-                .padding(.horizontal)
-            }
-            
-            ScrollView {
-                Text(text)
-                    .padding()
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(NSColor.textBackgroundColor))
-                    .cornerRadius(8)
-            }
-            .frame(maxHeight: 200)
-            .padding(.horizontal)
-            
-            HStack(spacing: 16) {
-                Button(action: {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(text, forType: .string)
-                    onDismiss()
-                }) {
-                    Label("Copy to Clipboard", systemImage: "doc.on.clipboard")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(ProminentButtonStyle())
-                
-                Button(action: {
-                    onDismiss()
-                }) {
-                    Text("Close")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(BorderedButtonStyle())
-            }
-            .padding(.horizontal)
-        }
-        .padding()
-        .frame(width: 500, height: 400)
-        .backgroundGradient()
-        .onAppear {
-            // Check if Teams is the frontmost application
-            if let appName = NSWorkspace.shared.frontmostApplication?.localizedName {
-                isTeamsDetected = appName.contains("Teams")
-            }
-        }
-    }
-}
-
-// Additional button style for the help sheet
-struct ProminentButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .padding()
-            .background(Color.blue)
-            .foregroundColor(.white)
-            .cornerRadius(8)
-            .scaleEffect(configuration.isPressed ? 0.98 : 1.0)
-            .animation(.spring(response: 0.2), value: configuration.isPressed)
-    }
-}
 

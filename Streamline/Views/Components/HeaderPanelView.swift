@@ -57,7 +57,22 @@ private let modelOptions: [String: [ModelOption]] = [
         ModelOption(id: "@cf/meta/llama-3-70b-instruct", name: "Llama 3 70B Instruct", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
         ModelOption(id: "@cf/mistral/mistral-7b-instruct-v0.1", name: "Mistral 7B Instruct", iconName: "wind", iconColor: .blue, cost: 0.0005, provider: "Cloudflare", capabilities: "Good", speed: "Fast"),
         ModelOption(id: "@cf/mistral/mistral-large-latest", name: "Mistral Large", iconName: "wind.snow", iconColor: .blue, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
-        
+
+
+        //@cf/deepseek-ai/deepseek-r1-distill-qwen-32b
+        ModelOption(id: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", name: "DeepSeek R1 Distill Qwen 32B", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
+        //@hf/google/gemma-7b-it
+        ModelOption(id: "@hf/google/gemma-7b-it", name: "Gemma 7B IT", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+        //@hf/google/gemma-2-9b-it
+        ModelOption(id: "@hf/google/gemma-2-9b-it", name: "Gemma 2 9B IT", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+        //@hf/google/gemma-2-9b-it
+        ModelOption(id: "@hf/google/gemma-2-9b-it", name: "Gemma 2 9B IT", iconName: "cloud.bolt", iconColor: .orange, cost: 0.0015, provider: "Cloudflare", capabilities: "Very Good", speed: "Medium"),
+
+
         // Embedding Models
         ModelOption(id: "@cf/baai/bge-base-en-v1.5", name: "BGE Base English", iconName: "square.stack.3d.up", iconColor: .teal, cost: 0.0001, provider: "Cloudflare", capabilities: "Embeddings", speed: "Very Fast"),
         ModelOption(id: "@cf/baai/bge-large-en-v1.5", name: "BGE Large English", iconName: "square.stack.3d.up.fill", iconColor: .teal, cost: 0.0002, provider: "Cloudflare", capabilities: "Embeddings", speed: "Fast"),
@@ -137,11 +152,6 @@ private let modelOptions: [String: [ModelOption]] = [
                     appState.isAIPanelVisible = true
                     appState.selectedText = ""
                     appState.aiResponse = ""
-                    appState.aiModel = "gpt-4o-mini"
-                    appState.apiKey = ""
-                    appState.currentAppName = ""
-                    appState.currentAppBundleID = ""
-                    appState.currentAppPath = ""
                 }) {
                     HStack(spacing: 6) {
                         Text("Start blank")
@@ -178,6 +188,9 @@ private let modelOptions: [String: [ModelOption]] = [
                             ForEach(modelOptions[provider] ?? [], id: \.id) { model in
                                 Button(action: {
                                     appState.aiModel = model.id
+
+                                    //save in local storage 
+                                    UserDefaults.standard.set(model.id, forKey: "aiModel")
                                     selectedOption = model.name
                                 }) {
                                     HStack {

@@ -7,7 +7,7 @@ class AppState: ObservableObject {
     @Published var hotkeyEnabled: Bool = true
     @Published var emptySelectionMode: Bool = false
     @Published var apiKey: String = ""
-    @Published var aiModel: String = "gpt-4o"
+    @Published var aiModel: String = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
     @Published var isDarkMode: Bool = false
     @Published var currentTheme: String = "light" // Default to light theme
     @Published var responseStyle: ResponseStyle = .balanced
