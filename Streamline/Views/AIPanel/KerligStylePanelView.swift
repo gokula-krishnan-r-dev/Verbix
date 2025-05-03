@@ -150,7 +150,8 @@ struct KerligStylePanelView: View {
         .makeShorter
     ]
     
-    private enum ActionTab {
+    // Update ActionTab to match the AIPromptField.AIPromptTab type
+    private enum ActionTab: Hashable {
         case blank
         case withContent
     }
@@ -473,12 +474,6 @@ struct KerligStylePanelView: View {
         print("System prompt: \(systemPrompt)")
         print("Content prompt: \(formattedPrompt)")
         
-        // Create a timeout publisher
-        let timeoutPublisher = Just(())
-            .delay(for: .seconds(30), scheduler: RunLoop.main)
-            .map { _ -> Error in URLError(.timedOut) }
-            .setFailureType(to: Error.self)
-        
         // Cancel any existing requests
         self.cancellables.removeAll()
         
@@ -489,7 +484,7 @@ struct KerligStylePanelView: View {
             model: "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
         )
         
-        // Merge with timeout and add retry logic
+        // Add retry logic with better error handling
         requestPublisher
             .retry(2) // Retry up to 2 times before failing
             .timeout(.seconds(45), scheduler: DispatchQueue.main, customError: { URLError(.timedOut) })
@@ -534,11 +529,6 @@ struct KerligStylePanelView: View {
                         }
                         self.appState.aiResponse = response
                         self.appState.saveInteraction()
-                        
-                        // Give visual feedback that processing is complete
-                        withAnimation(.spring(response: 0.4)) {
-                            // This animation will be triggered by the binding value change
-                        }
                     }
                 }
             )
@@ -616,162 +606,75 @@ struct KerligStylePanelView: View {
             .environmentObject(appState)  // Make sure to pass the AppState to the SelectedTextView
     }
     
+    // Replace the old promptField implementation with our new component
     private var promptField: some View {
-        VStack(spacing: 8) {
-            HStack(spacing: 12) {
-                // Action icon
-                ZStack {
-                    Image(systemName: "wand.and.stars")
-                        .font(.system(size: 16))
-                        .foregroundColor(isProcessing ? .gray : .blue)
-                        .opacity(0.8)
-                        .scaleEffect(searchQuery.isEmpty ? 1.0 : 0.9)
-                    
-                    if isProcessing {
-                        Circle()
-                            .stroke(Color.blue, lineWidth: 1.5)
-                            .frame(width: 24, height: 24)
-                            .opacity(0.7)
-                            .scaleEffect(isProcessing ? 1.2 : 0.8)
-                            .opacity(isProcessing ? 0.0 : 0.8)
-                            .animation(
-                                Animation.easeInOut(duration: 1.2)
-                                    .repeatForever(autoreverses: false),
-                                value: isProcessing
-                            )
+        AIPromptField(
+            searchQuery: $searchQuery,
+            isProcessing: $isProcessing,
+            selectedTab: Binding<AIPromptField.AIPromptTab>(
+                get: {
+                    switch selectedTab {
+                    case .blank: return .blank
+                    case .withContent: return .withContent
+                    }
+                },
+                set: { newValue in
+                    switch newValue {
+                    case .blank: selectedTab = .blank
+                    case .withContent: selectedTab = .withContent
+                    case .custom: selectedTab = .withContent // Fallback option
                     }
                 }
-                .animation(.spring(response: 0.3), value: searchQuery.isEmpty)
-                .animation(.spring(response: 0.3), value: isProcessing)
-                
-                // Text field for search or prompt
-                TextField("Ask AI to...", text: $searchQuery)
-                    .onSubmit {
-                        if !self.searchQuery.isEmpty && !self.isProcessing {
-                            self.processCustomPrompt()
+            ),
+            aiModel: $aiModel,
+            focusedField: Binding<AIPromptField.FocusableField?>(
+                get: {
+                    if let focus = focusedField {
+                        switch focus {
+                        case .searchField:
+                            return .searchField
+                        case .actionButton(let index):
+                            return .actionButton(index)
+                        case .copyButton:
+                            return .copyButton
+                        case .insertButton:
+                            return .insertButton
+                        case .regenerateButton:
+                            return .regenerateButton
                         }
                     }
-                    .focused($searchQueryIsFocused)
-                    .focused($focusedField, equals: .searchField)
-                    .disableAutocorrection(true)
-                    .textFieldStyle(PlainTextFieldStyle())
-                    .foregroundColor(.primary)
-                    .font(.system(size: 15))
-                    .background(Color(NSColor.windowBackgroundColor))
-                    .disabled(isProcessing)
-                    .opacity(isProcessing ? 0.7 : 1.0)
-                    .overlay(
-                        focusedField == .searchField ? 
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(Color.blue, lineWidth: 1.5)
-                                .padding(-4) : nil
-                    )
-                
-                // Clear button that appears when text is entered and not processing
-                if !searchQuery.isEmpty && !isProcessing {
-                    Button(action: {
-                        self.searchQuery = ""
-                        // Re-focus the text field after clearing
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-                            self.searchQueryIsFocused = true
+                    return nil
+                },
+                set: { newValue in
+                    if let newFocus = newValue {
+                        switch newFocus {
+                        case .searchField:
+                            focusedField = .searchField
+                        case .actionButton(let index):
+                            focusedField = .actionButton(index)
+                        case .copyButton:
+                            focusedField = .copyButton
+                        case .insertButton:
+                            focusedField = .insertButton
+                        case .regenerateButton:
+                            focusedField = .regenerateButton
+                        case .custom:
+                            break // Ignore custom fields from AIPromptField
                         }
-                    }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(.gray.opacity(0.7))
-                            .padding(2)
+                    } else {
+                        focusedField = nil
                     }
-                    .buttonStyle(PlainButtonStyle())
-                    .transition(.scale.combined(with: .opacity))
-                    .animation(.spring(response: 0.3), value: !searchQuery.isEmpty)
                 }
-                
-                // Ask/Cancel button
-                if !searchQuery.isEmpty {
-                    Button(action: {
-                        if self.isProcessing {
-                            // Cancel operation
-                            self.cancellables.removeAll()
-                            self.isProcessing = false
-                            self.generatedResponse = "Request canceled."
-                        } else {
-                            // Start operation
-                            self.processCustomPrompt()
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            if isProcessing {
-                                Text("Cancel")
-                                Image(systemName: "stop.circle.fill")
-                            } else {
-                                Text("Ask")
-                                Image(systemName: "arrow.up.circle.fill")
-                            }
-                        }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .background(isProcessing ? Color.orange : Color.blue)
-                        .foregroundColor(.white)
-                        .cornerRadius(16)
-                        .shadow(color: isProcessing ? Color.orange.opacity(0.3) : Color.blue.opacity(0.3), radius: 2, x: 0, y: 1)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .transition(.scale.combined(with: .opacity))
-                    .animation(.spring(response: 0.4), value: !searchQuery.isEmpty)
-                    .animation(.spring(response: 0.4), value: isProcessing)
-                }
+            ),
+            onSubmit: {
+                self.processCustomPrompt()
+            },
+            onCancel: {
+                self.cancellables.removeAll()
+                self.isProcessing = false
+                self.generatedResponse = "Request canceled."
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(Color(NSColor.windowBackgroundColor))
-            
-            // Model indicator and status
-            HStack {
-                HStack(spacing: 4) {
-                    Text("Model:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    Text(aiModel)
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(4)
-                        .foregroundColor(.blue)
-                }
-                
-                Spacer()
-                
-                if selectedTab == .withContent {
-                    Text("Using selected text")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.green.opacity(0.1))
-                        .cornerRadius(4)
-                }
-                
-                if isProcessing {
-                    HStack(spacing: 4) {
-                        ProgressView()
-                            .scaleEffect(0.5)
-                            .frame(width: 12, height: 12)
-                        
-                        Text("Processing...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                    .transition(.opacity)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.bottom, 8)
-            .animation(.easeInOut(duration: 0.2), value: isProcessing)
-        }
-        .padding(.horizontal, 16)
-        .padding(.top, 16)
+        )
     }
     
     private var actionButtonsView: some View {

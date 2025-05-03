@@ -28,7 +28,6 @@ struct ContentView: View {
     enum SidebarItem: String, CaseIterable {
         case dashboard = "Dashboard"
         case textCapture = "Text Capture"
-        case textFormatter = "Text Formatter"
         case history = "History"
         case settings = "Settings"
         
@@ -36,7 +35,6 @@ struct ContentView: View {
             switch self {
             case .dashboard: return "house"
             case .textCapture: return "text.cursor"
-            case .textFormatter: return "text.format"
             case .history: return "clock"
             case .settings: return "gear"
             }
@@ -56,8 +54,6 @@ struct ContentView: View {
                 case .textCapture:
                     TextCaptureView()
                         .environmentObject(appState)
-                case .textFormatter:
-                    FormattedTextPreviewView()
                 case .history:
                     historyView
                 case .settings:
